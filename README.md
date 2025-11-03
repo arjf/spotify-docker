@@ -60,12 +60,12 @@ You can use the desktop file or an alias to launch.
 ## GPU Support
 If you do not have an nvidia GPU,
 
-Remove the line `runtime: nvidia` from `\$HOME/.config/spotify-docker/docker-compose.yml` under the container definition.
+Remove the line `runtime: nvidia` from `$HOME/.config/spotify-docker/docker-compose.yml` under the container definition.
 Modify as required by your gpu setup.
 
 For NVIDIA, you may need additional configuration:
 
-If you are not using nvidia-container-toolkit, add the following to `\$HOME/.config/spotify-docker/docker-compose.yml` under the container defintion, and remove `runtime: nvidia`.
+If you are not using nvidia-container-toolkit, add the following to `$HOME/.config/spotify-docker/docker-compose.yml` under the container defintion, and remove `runtime: nvidia`.
 ```yaml
 deploy:
   resources:
