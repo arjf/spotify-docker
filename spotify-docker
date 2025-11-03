@@ -1,0 +1,184 @@
+#!/bin/bash
+
+set -e
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+# settings
+ENV_FILE="$HOME/.config/spotify-docker/.env"
+COMPOSE_FILE="$HOME/.config/spotify-docker/docker-compose.yml"
+
+if [ -e "$ENV_FILE" ]; then
+  set -a
+  # shellcheck disable=SC1090
+  . "$ENV_FILE"
+  set +a
+  echo -e "${GREEN}Loaded environment variables from $ENV_FILE${NC}"
+else
+  echo -e "${RED}Error: Environment file $ENV_FILE not found${NC}"
+  exit 1
+fi
+
+if [ -z "$CONF_DIR" ]; then
+  echo -e "${RED}Error: CONF_DIR is not set${NC}"
+  exit 1
+fi
+
+if [ -d "$CONF_DIR" ]; then
+  echo -e "${GREEN}Using configuration directory: $CONF_DIR${NC}"
+else
+  echo -e "${YELLOW}Configuration directory not found, creating: $CONF_DIR${NC}"
+  mkdir -p "$CONF_DIR"
+fi
+
+if [ -z "$LOCAL_DIR" ]; then
+  echo -e "${RED}Error: LOCAL_DIR is not set${NC}"
+  exit 1
+fi
+
+if [ -d "$LOCAL_DIR" ]; then
+  echo -e "${GREEN}Using \$HOME/.local directory: $LOCAL_DIR${NC}"
+else
+  echo -e "${YELLOW}\$HOME/.local directory not found, creating: $LOCAL_DIR${NC}"
+  mkdir -p "$LOCAL_DIR"
+fi
+
+if [ -z "$HOST_UID" ]; then
+  echo -e "${YELLOW}Warn: HOST_UID is not set, defaulting to $(id -u)${NC}"
+  HOST_UID=$(id -u)
+fi
+
+if [ -z "$HOST_GID" ]; then
+  echo -e "${YELLOW}Warn: HOST_GID is not set, defaulting to $(id -g)${NC}"
+  HOST_GID=$(id -g)
+fi
+
+
+# Helpers
+check_container_state() {
+  if docker ps --filter "name=spotify-docker" --filter "status=running" | grep -q "spotify-docker"; then
+    echo 1
+  else
+    echo 0
+  fi
+}
+
+ensure_container() {
+  if [ "$(check_container_state)" -eq 1 ]; then
+    echo -e "${GREEN}Container is running.${NC}"
+  else
+    echo -e "${YELLOW}Container not running. Starting...${NC}"
+    ${0} create
+    sleep 2
+  fi
+}
+
+echo -e "${GREEN}Starting Spotify in Docker${NC}"
+
+# Check if running on Wayland
+if [ -z "$WAYLAND_DISPLAY" ]; then
+  echo -e "${YELLOW}Warning: WAYLAND_DISPLAY not set, defaulting to wayland-1${NC}"
+  export WAYLAND_DISPLAY="wayland-1"
+fi
+
+# Check if XDG_RUNTIME_DIR is set
+if [ -z "$XDG_RUNTIME_DIR" ]; then
+  echo -e "${RED}Error: XDG_RUNTIME_DIR is not set${NC}"
+  exit 1
+fi
+
+# Check if Wayland socket exists
+WAYLAND_SOCKET="$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY"
+if [ ! -S "$WAYLAND_SOCKET" ]; then
+  echo -e "${RED}Error: Wayland socket not found at $WAYLAND_SOCKET${NC}"
+  exit 1
+fi
+
+echo -e "${GREEN}Wayland socket found: $WAYLAND_SOCKET${NC}"
+
+# Check for PipeWire/PulseAudio
+if [ -S "$XDG_RUNTIME_DIR/pipewire-0" ]; then
+  echo -e "${GREEN}PipeWire socket found${NC}"
+elif [ -S "$XDG_RUNTIME_DIR/pulse/native" ]; then
+  echo -e "${GREEN}PulseAudio socket found${NC}"
+else
+  echo -e "${YELLOW}Warning: No audio socket found, audio may not work${NC}"
+fi
+
+# Parse command line arguments
+case "$1" in
+  -l | launch)
+    echo -e "${GREEN}Launching Spotify...${NC}"
+    ensure_container
+    docker-compose -f "$COMPOSE_FILE" exec spotify /usr/bin/spotify-launcher
+    ;;
+
+  -c | create)
+    echo -e "${GREEN}Creating Spotify container in daemon mode...${NC}"
+    docker-compose -f "$COMPOSE_FILE" up -d
+    echo -e "${GREEN}Container is running. Use '$0 launch' to open Spotify.${NC}"
+    ;;
+
+  -s | shell)
+    echo -e "${GREEN}Opening shell in Spotify container...${NC}"
+    ensure_container
+    docker-compose -f "$COMPOSE_FILE" exec spotify /bin/bash
+    ;;
+
+  -t | spicetify)
+    shift
+    echo -e "${GREEN}Running spicetify command: "$@"${NC}"
+    ensure_container
+    docker-compose -f "$COMPOSE_FILE" exec spotify spicetify "$@"
+    ;;
+
+  -k | stop)
+    echo -e "${GREEN}Stopping Spotify container...${NC}"
+    docker-compose -f "$COMPOSE_FILE" stop
+    ;;
+
+  -L | logs)
+    echo -e "${GREEN}Showing Spotify container logs...${NC}"
+    docker-compose -f "$COMPOSE_FILE" logs -f
+    ;;
+
+  -d | down)
+    echo -e "${YELLOW}Removing Spotify container...${NC}"
+    docker-compose -f "$COMPOSE_FILE" down
+    echo -e "${GREEN}Removal complete${NC}"
+    ;;
+
+  -b | build)
+    echo -e "${GREEN}Building Spotify Docker image...${NC}"
+    docker-compose -f "$COMPOSE_FILE" build
+    echo -e "${GREEN}Build complete${NC}"
+    ;;
+
+  -h | --help | help)
+    echo "Usage: $0 [OPTION...]"
+    echo ""
+    echo "  -c, create        - Start container in daemon mode"
+    echo "  -l, launch        - Launch Spotify in running container"
+    echo "  -b, build         - Build the Docker image"
+    echo "  -s, shell         - Open a shell in the container"
+    echo "  -t, spicetify ... - Run spicetify command"
+    echo "  -k, stop          - Stop the container"
+    echo "  -L, logs          - Show container logs"
+    echo "  -d, down          - Remove container"
+    echo "  -h, help          - Show this help message"
+    ;;
+
+  "")
+    ${0} help
+    ;;
+
+  *)
+    echo -e "${RED}Unknown command: $1${NC}"
+    echo "Run '$0 help' for usage information"
+    exit 1
+    ;;
+esac

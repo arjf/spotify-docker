@@ -1,0 +1,37 @@
+services:
+  spotify:
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+    container_name: spotify-docker
+    environment:
+      - HOST_UID=${HOST_UID:?err}
+      - HOST_GID=${HOST_GID:?err}
+      - DISPLAY=${DISPLAY}
+      - WAYLAND_DISPLAY=${WAYLAND_DISPLAY:-wayland-1}
+      - XDG_RUNTIME_DIR=/tmp/runtime-spotify
+      - XDG_SESSION_TYPE=wayland
+      - QT_QPA_PLATFORM=wayland
+      - GDK_BACKEND=wayland
+      - PULSE_SERVER=unix:/tmp/pulse-socket
+      - PULSE_COOKIE=/tmp/pulse-cookie
+      - DBUS_SESSION_BUS_ADDRESS=unix:path=/tmp/runtime-spotify/dbus-session
+    volumes:
+      # Wayland socket only
+      - ${XDG_RUNTIME_DIR}/${WAYLAND_DISPLAY:-wayland-1}:/tmp/runtime-spotify/${WAYLAND_DISPLAY:-wayland-1}:ro
+      # PulseAudio/PipeWire socket
+      - ${XDG_RUNTIME_DIR}/pipewire-0:/tmp/runtime-spotify/pipewire-0:ro
+      - ${XDG_RUNTIME_DIR}/pulse:/tmp/pulse-socket:ro
+      # Spicetify & spotify configs and data
+      - ${CONF_DIR?err}:/home/spotify/.config:rw
+      - ${LOCAL_DIR?err}:/home/spotify/.local:rw
+
+    devices:
+      - /dev/dri:/dev/dri # GPU acceleration
+    network_mode: host
+    ipc: host
+    security_opt:
+      - seccomp:unconfined
+    privileged: false
+    runtime: nvidia
+    restart: unless-stopped

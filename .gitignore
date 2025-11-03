@@ -1,0 +1,7 @@
+*.log
+
+# IDE
+*~
+# Environment
+.env
+.env.local
