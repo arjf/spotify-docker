@@ -1,8 +1,8 @@
 [Desktop Entry]
 Name=Spotify-docker
 Comment=Run Spotify in a Wayland container
-Exec=spotify-docker launch
-Icon=spotify
+Exec=@HOME@/.local/bin/spotify-docker launch
+Icon=spotify-launcher
 Terminal=false
 Type=Application
 Categories=AudioVideo;Audio;Player;

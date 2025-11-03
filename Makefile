@@ -66,5 +66,5 @@ install-build: ## Install locally built version
 install-desktop: ## Install desktop file
 	@echo "Installing Spotify Docker desktop file..."
 	mkdir -p ~/.local/share/applications
-	cp spotify-docker.desktop ~/.local/share/applications/spotify-docker.desktop
+	sed "s|@HOME@|$$HOME|g" spotify-docker.desktop > ~/.local/share/applications/spotify-docker.desktop
 	@echo "Desktop file installed. In some cases you may need to log out and back in to see it in your application menu."
